@@ -59,7 +59,7 @@ def make_tridiagonal(N, b, d, a):
     # initializing BEL array as N x N array with lower diagonal equal to b
     BEL = np.diag(np.full(shape=(N-1),fill_value=b),k=-1)
     
-    # initializing ABV array as N x N array with above diagonal equal to a
+    # initializing ABV array as N x N arr ay with above diagonal equal to a
     ABV = np.diag(np.full(shape=(N-1),fill_value=a),k=1)
     
     # adding upper and lower diagonals to A to be returned
@@ -75,9 +75,9 @@ def make_initialcond_sch(wparam,space_grid):
     wave packet at time t = 0 at all spatial grid positions as a list.'''
     
     # Unpacking input wave parameters from wparam arugment
-    sig_0 = wparam[0]     #
+    sig_0 = wparam[0]     # initial wave packet width
     x0 = wparam[1]        # initial particle localization
-    k0 = wparam[2]        #
+    k0 = wparam[2]        # wavenumber
 
     # Setting input spatial grid equal to x for to condense code
     x = space_grid
@@ -103,7 +103,7 @@ ntime_tbd = 501         # number of time steps to be solved over (int)
 tau_tbd = 0.016666666666666666 # tau is the time step to be solved with (float)
 
 # Global constants (identified by _ as first character)
-_plk_given = 1  # plancks constant
+_h_bar_given = 1  # plancks constant
 _m_given = 0.5  # particle mass (m)
 _imag_i = 1j    # complex number i (root(-1))
 
@@ -135,34 +135,40 @@ def sch_eqn(nspace, ntime, tau, method='ftcs', length=200, potential=[], wparam=
     Vx_initial[potential] = 1               # setting V = 1 for all values specified by input arg potential
 
     # Evolution matrices for FTCS and Crank-Nicolson integration schemes
-    # NEED TO ADAPT OLD CODE FIRST
+    coeff_Ham = (-_h_bar_given**2)/(2*_m_given*(h**2))  # simplifies to -1/h^2
+    H = make_tridiagonal(nspace,coeff_Ham,-2*coeff_Ham,coeff_Ham)
 
+    return [h,H]
 
     # Logic pathway for FTCS integration (default)
-    if method == 'ftcs':
+    # if method == 'ftcs':
         
-        # Temporary placeholder for actual evolution matrix of schEQN
-        evolution_matrix_tbd = [] 
+    #     # Temporary placeholder for actual evolution matrix of schEQN
+    #     evolution_matrix_tbd = [] 
 
-        # Stability analysis for FTCS integration
-        stab_val = spectral_radius(evolution_matrix_tbd)
+    #     # Stability analysis for FTCS integration
+    #     stab_val = spectral_radius(evolution_matrix_tbd)
     
-        # If stable, proceed with FTCS integration
-        if stab_val < 1:
-            print('FTCS integation is stable for input parameters.')
-            print('PROCEEDING WITH INTEGRATION')
+    #     # If stable, proceed with FTCS integration
+    #     if stab_val < 1:
+    #         print('FTCS integation is stable for input parameters.')
+    #         print('PROCEEDING WITH INTEGRATION')
     
-            # Then integrate with FTCS scheme
-            return #solution to sch eqn, total probability at each timestep
+    #         # Then integrate with FTCS scheme
+    #         return #solution to sch eqn, total probability at each timestep
         
-        # If unstable, notify user and terminate integration
-        else:
-            print('FTCS integration is unstable for input parameters.')
-            print('Please try again.')
-            print('INTEGRATION TERMINATED')
-            return # nothing, integration will not proceed 
+    #     # If unstable, notify user and terminate integration
+    #     else:
+    #         print('FTCS integration is unstable for input parameters.')
+    #         print('Please try again.')
+    #         print('INTEGRATION TERMINATED')
+    #         return # nothing, integration will not proceed 
 
 
     # Logic pathway for Crank_Nicolson integration
     # elif method == 'crank':
         # no stability analysis required, stable for all tau
+
+h_out, H_out = sch_eqn(nspace_tbd,ntime_tbd,tau_tbd)
+print(h_out)
+print(H_out)
