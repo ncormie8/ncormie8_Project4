@@ -1,4 +1,5 @@
 import numpy as np
+from numpy import linalg
 from matplotlib import pyplot
 import time                # for code testing and user experience (time.sleep())
 
@@ -134,9 +135,14 @@ def sch_eqn(nspace, ntime, tau, method='ftcs', length=200, potential=[], wparam=
     Vx = np.empty(np.size(x_grid))  # creating empty array of potentials to match each x position
     Vx[potential] = 1               # setting V = 1 for all values specified by input arg potential
 
-    # Evolution matrices for FTCS and Crank-Nicolson integration schemes
-    coeff_Ham = (-_h_bar_given**2)/(2*_m_given*(h**2))  # simplifies to -1/h^2
-    H = make_tridiagonal(nspace,coeff_Ham,-2*coeff_Ham,coeff_Ham) + Vx*make_tridiagonal(nspace,0,1,0)
+    # Constuction of Hamiltonian matrix for use in FTCS and Crank-Nicolson (CN) integration schemes
+    coeff_Ham = (-_h_bar_given**2)/(2*_m_given*(h**2))  
+    H = make_tridiagonal(nspace,coeff_Ham,-2*coeff_Ham,coeff_Ham) + Vx*make_tridiagonal(nspace,0,1,0)     
+    I = np.identity(nspace)
+
+    # Evolution matrices for FTCS and CN integration schemes
+    A_ftcs = I - (_imag_i*tau/_h_bar_given)*H                                             
+    A_cn = (I - (_imag_i*tau/(2*_h_bar_given))*H)*np.linalg.inv(I + (_imag_i*tau/(2*_h_bar_given))*H)
 
     return [h,H]
 
