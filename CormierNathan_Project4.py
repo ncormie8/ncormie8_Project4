@@ -1,6 +1,6 @@
 import numpy as np
 from numpy import linalg
-from matplotlib import pyplot
+from matplotlib import pyplot as plt
 import time                # for code testing and user experience (time.sleep())
 
 # References:
@@ -27,21 +27,24 @@ import time                # for code testing and user experience (time.sleep())
 #  
 #  Numerical Methods For Physics (Python) - Alejandro L. Garcia 2E revised, 2017. pgs 227-240
 
+# Fixing random state for reproducibility
+
+
 # Reused functions from previous labs and projects:
 
 # Lab 10 - Spectral radius; used in performing stability analysis of FTCS integration
 def spectral_radius(A):
     '''Takes input parameter A as an array, and returns the absolute maximum 
     eigenvalue of the input array A.'''
-
-    # copmputes eigenvalues and eigen vectors of the input array A
+    
+    # computes eigenvalues and eigen vectors of the input array A
     # and assigns them to variables eigval and eigvect
-    eigval, eigvect = np.linalg.eig(a=A)
-
+    eigval, eigvect = np.linalg.eig(A)
+    
     # generating array containing the absolute values of all elements
     # in eigval
     abs = np.abs(eigval)
-
+    
     # setting maxAbs equal to abs at the index where the maximum arugment is located
     maxAbs = abs[np.argmax(abs)]
     
@@ -101,17 +104,14 @@ def make_initialcond_sch(wparam,space_grid):
 #------------------------------------------------------------------------------------------------------------#
 # Project 4 - Main
 
-# Fixing random state for reproducibility
-np.random.seed(19680801)
-
 # Initial parameter declarations (using values from Lab 11 to test functionality for now)
 nspace_tbd = 100  # number of spatial grid points (int)
-ntime_tbd = 1501   # number of time steps to be solved over (int)
-tau_tbd = 1e-10     # tau is the time step to be solved with (float)
+ntime_tbd = 501   # number of time steps to be solved over (int)
+tau_tbd = 1e-500    # tau is the time step to be solved with (float)
 
 # Global constants (identified by _ as first character)
-_h_bar_given = 1  # plancks constant
-_m_given = 0.5    # particle mass (m)
+_h_bar_given = 1.0  # plancks constant
+_m_given = 0.5     # particle mass (m)
 _imag_i = 1j      # complex number i (root(-1))
 
 # Function that solves the one-dimensional, time-dependent Schroedinger Equation
@@ -138,68 +138,72 @@ def sch_eqn(nspace, ntime, tau, method='ftcs', length=200, potential=[], wparam=
     method = method.lower()  # modifying input string to be all lowercase for versatility
 
     # Initializing the x grid array to solve over (tested - appears to be working properly)
-    x_grid = np.arange(-L/2,L/2+h,h)
-
+    x_grid = np.arange(nspace)*h - L/2
+    
     # Initializing the time grid array to solve over (tested - appears to be working properly)
-    t_grid = np.arange(0,ntime*tau,tau)
+    t_grid = np.linspace(0,ntime*tau,ntime)
 
     # Initializing the potential array (tested - appears to be working properly)
-    Vx = np.empty(np.size(x_grid))  # creating empty array of potentials to match each x position
+    Vx = np.zeros(np.size(x_grid))  # creating zeros array of potentials to match each x position (used empty originally and caused many issues)
     Vx[potential] = 1               # setting V = 1 for all values specified by input arg potential
+    # ^^^ PROBLEM SOURCE
 
     # Creating the Psi(x,t) function
-    psi = np.zeros((nspace,ntime),dtype =complex)  # initializing empty array of shape (nspace x ntime) with complex type so as not to lose imaginary components
+    psi = np.zeros((nspace,ntime),dtype=complex)  # initializing empty array of shape (nspace x ntime) with complex type so as not to lose imaginary components
     psi[:,0] = make_initialcond_sch(wparam,x_grid)     # setting values of psi at t = 0 to calculated values of the initial wave function 
 
     # Constuction of Hamiltonian matrix for use in FTCS and Crank-Nicolson (CN) integration schemes
-    coeff_Ham = (-_h_bar_given**2)/(2*_m_given*(h**2))  
-    H = make_tridiagonal(nspace,coeff_Ham,-2*coeff_Ham,coeff_Ham) + Vx*make_tridiagonal(nspace,0,1,0)     
-    I = np.identity(nspace)
-
+    coeff_Ham = (-1*_h_bar_given**2)/(2*_m_given*(h**2))  
+    H = make_tridiagonal(nspace,coeff_Ham,-2*coeff_Ham,coeff_Ham) + np.diag(Vx)
+    
     # Implementation of periodic boundary conditions for the Hamiltonian matrix
     H[0,-1] = coeff_Ham
     H[-1,0] = coeff_Ham
     
     # Evolution matrices for FTCS and CN integration schemes
-    A_ftcs = I - (_imag_i*tau/_h_bar_given)*H                                             
-    A_cn = (np.linalg.inv(I + (_imag_i*tau/(2*_h_bar_given))*H))*(I - (_imag_i*tau/(2*_h_bar_given))*H)
-
-    # Defining the probability function
-
+    I = np.identity(nspace)
+    A_ftcs = I - _imag_i*tau/_h_bar_given*H
+    A_cn= np.dot(np.linalg.inv(I + (_imag_i*tau/(2*_h_bar_given))*H),(I - (_imag_i*tau/(2*_h_bar_given))*H))
 
     # Logic pathway for FTCS integration (default)
     if method == 'ftcs': 
-
+        
         # Stability analysis for FTCS integration
         stab_val = spectral_radius(A_ftcs)
-    
+
         # If stable, proceed with FTCS integration
-        if stab_val < 1:
+        if stab_val <= 1:
             print('FTCS integation is stable for input timestep.')
             print('PROCEEDING WITH INTEGRATION')
             
             # Main FTCS Loop - ranges from one to ntime since psi at t = 0 is the initial condition
             for i in range(1, ntime):
-        
                 psi[:, i]  = A_ftcs.dot(psi[:,i-1])  # Solving Schroedingers Equation with FTCS method
+                # Probability function loop
             
+            probabilities = np.zeros((ntime))
+            psiSQR = psi*(np.conjugate(psi))
+            probabilities = np.real(psiSQR)
+            
+            return psi, x_grid, t_grid, probabilities
+
         # If unstable, notify user and terminate integration
         else:
-            return 'FTCS integration is unstable for input timestep.\nPlease try again.\nINTEGRATION TERMINATED' # nothing, integration will not proceed 
-
+            print('FTCS integration is unstable for input timestep.\nPlease try again.\nINTEGRATION TERMINATED')
+            return [0,0,0,0] # all zeros incdicate failed integration, stops expected unpacking error from occuring
 
     # # Logic pathway for Crank_Nicolson integration
     elif method == 'crank':
         # no stability analysis required, stable for all tau
-        
         # Main Crank-Nicolson Loop - ranges from one to ntime since psi at t = 0 is the initial condition
             for i in range(1, ntime):
-        
             # Solving Schroedingers Equation with CN method
                 psi[:, i]  = A_cn.dot(psi[:,i-1])
+            probabilities = np.zeros((ntime))
+            psiSQR = psi*(np.conj(psi))
+            probabilities = np.real(np.sum(psiSQR))
     
+
+     #solution to sch eqn, total probability at each timestep
         
-    return psi #solution to sch eqn, total probability at each timestep
-        
-test_out = sch_eqn(nspace_tbd,ntime_tbd,tau_tbd)
-print(test_out)
+psi, x, t, probabs = sch_eqn(nspace_tbd,ntime_tbd,tau_tbd)
