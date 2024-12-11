@@ -135,46 +135,55 @@ def sch_eqn(nspace, ntime, tau, method='ftcs', length=200, potential=[], wparam=
     Vx = np.empty(np.size(x_grid))  # creating empty array of potentials to match each x position
     Vx[potential] = 1               # setting V = 1 for all values specified by input arg potential
 
+    # Creating the Psi(x,t) function
+    psi = np.zeros((nspace,ntime))                    # initializing empty array of shape (nspace x ntime)
+    psi[:,0] = make_initialcond_sch(wparam,x_grid)    # setting values of psi at t = 0 to calculated values of the initial wave function 
+
     # Constuction of Hamiltonian matrix for use in FTCS and Crank-Nicolson (CN) integration schemes
     coeff_Ham = (-_h_bar_given**2)/(2*_m_given*(h**2))  
     H = make_tridiagonal(nspace,coeff_Ham,-2*coeff_Ham,coeff_Ham) + Vx*make_tridiagonal(nspace,0,1,0)     
     I = np.identity(nspace)
 
+    # Implementation of periodic boundary conditions for the Hamiltonian matrix
+    H[0,-1] = coeff_Ham
+    H[-1,0] = coeff_Ham
+    
     # Evolution matrices for FTCS and CN integration schemes
     A_ftcs = I - (_imag_i*tau/_h_bar_given)*H                                             
-    A_cn = (I - (_imag_i*tau/(2*_h_bar_given))*H)*np.linalg.inv(I + (_imag_i*tau/(2*_h_bar_given))*H)
+    A_cn = (np.linalg.inv(I + (_imag_i*tau/(2*_h_bar_given))*H))*(I - (_imag_i*tau/(2*_h_bar_given))*H)
 
-    return [h,H]
+    
 
     # Logic pathway for FTCS integration (default)
-    # if method == 'ftcs':
-        
-    #     # Temporary placeholder for actual evolution matrix of schEQN
-    #     evolution_matrix_tbd = [] 
+    if method == 'ftcs': 
 
-    #     # Stability analysis for FTCS integration
-    #     stab_val = spectral_radius(evolution_matrix_tbd)
+        # Stability analysis for FTCS integration
+        stab_val = spectral_radius(A_ftcs)
     
-    #     # If stable, proceed with FTCS integration
-    #     if stab_val < 1:
-    #         print('FTCS integation is stable for input parameters.')
-    #         print('PROCEEDING WITH INTEGRATION')
-    
-    #         # Then integrate with FTCS scheme
-    #         return #solution to sch eqn, total probability at each timestep
+        # If stable, proceed with FTCS integration
+        if stab_val < 1:
+            print('FTCS integation is stable for input timestep.')
+            print('PROCEEDING WITH INTEGRATION')
+            
+            
+            return #solution to sch eqn, total probability at each timestep
         
-    #     # If unstable, notify user and terminate integration
-    #     else:
-    #         print('FTCS integration is unstable for input parameters.')
-    #         print('Please try again.')
-    #         print('INTEGRATION TERMINATED')
-    #         return # nothing, integration will not proceed 
+        # If unstable, notify user and terminate integration
+        else:
+            print('FTCS integration is unstable for input parameters.')
+            print('Please try again.')
+            print('INTEGRATION TERMINATED')
+            return # nothing, integration will not proceed 
 
 
     # Logic pathway for Crank_Nicolson integration
-    # elif method == 'crank':
-        # no stability analysis required, stable for all tau
+    elif method == 'crank':
+        A_cn # no stability analysis required, stable for all tau
+    
 
-h_out, H_out = sch_eqn(nspace_tbd,ntime_tbd,tau_tbd,potential=[1,2])
+        
+    return 
+
+h_out, H_out = sch_eqn(nspace_tbd,ntime_tbd,tau_tbd)
 print(h_out)
 print(H_out)
