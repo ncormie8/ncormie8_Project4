@@ -3,10 +3,13 @@ from numpy import linalg
 from matplotlib import pyplot
 import time                # for code testing and user experience (time.sleep())
 
-# References
+# References:
+#  Lab 4; Reused:
+#       - Code to fix the random state for reproducibility
+#
 #  Lab 10; Reused and adapted:
 #       - spectral_radius() to perform stability analysis of FTCS integration 
-#       - make_initialcond() for applying initial condition to Shroedingers Equation
+#       - adapted make_initialcond() to be able to apply the initial condition to psi/Schroedingers Equation
 #       - make_tridiagonal() for evolution matrix constuction
 #
 #  Lab 11; Reused and adapted:
@@ -15,6 +18,7 @@ import time                # for code testing and user experience (time.sleep())
 #       - Inital condition code for V(x)
 #       - Input method lower casing
 #       - Stability analysis logic from spectral_radius() output
+#       - Copied solving loops for use in FTCS and Crank-Nicolson integration schemes
 # 
 #  Western Brightspace. (n.d.). Physics 3926, Project 4: The Schrodinger Equation
 #  UWO. https://westernu.brightspace.com/d2l/le/enhancedSequenceViewer/29104?url=https%3A%2F%2F832d4e9b-197e-4ab6-a2ca-c4f7aae74b20.sequences.api.brightspace.com%2F29104%2Factivity%2F2552026%3FfilterOnDatesAndDepth%3D1
@@ -22,7 +26,6 @@ import time                # for code testing and user experience (time.sleep())
 #       - Reused and adapted description of sch_eqn() and its parameters for sch_eqn() Docstring
 #  
 #  Numerical Methods For Physics (Python) - Alejandro L. Garcia 2E revised, 2017. pgs 227-240
-#
 
 # Reused functions from previous labs and projects:
 
@@ -98,27 +101,36 @@ def make_initialcond_sch(wparam,space_grid):
 #------------------------------------------------------------------------------------------------------------#
 # Project 4 - Main
 
+# Fixing random state for reproducibility
+np.random.seed(19680801)
+
 # Initial parameter declarations (using values from Lab 11 to test functionality for now)
-nspace_tbd = 300         # number of spatial grid points (int)
-ntime_tbd = 501         # number of time steps to be solved over (int)
-tau_tbd = 0.016666666666666666 # tau is the time step to be solved with (float)
+nspace_tbd = 100  # number of spatial grid points (int)
+ntime_tbd = 1501   # number of time steps to be solved over (int)
+tau_tbd = 1e-10     # tau is the time step to be solved with (float)
 
 # Global constants (identified by _ as first character)
 _h_bar_given = 1  # plancks constant
-_m_given = 0.5  # particle mass (m)
-_imag_i = 1j    # complex number i (root(-1))
+_m_given = 0.5    # particle mass (m)
+_imag_i = 1j      # complex number i (root(-1))
 
 # Function that solves the one-dimensional, time-dependent Schroedinger Equation
 def sch_eqn(nspace, ntime, tau, method='ftcs', length=200, potential=[], wparam=[10,0,0.5]):
     '''Function which solves the one-dimensional, time-dependent Schroedinger Equation.
-    Requires input parameters nspace (int) for the number of spatial grid points, ntime (int)
-    for the number of time steps to be solved over, and tau for the time step to be used (float).
-    Accepts optional parameters method (Default = 'ftcs'), length for the size of the spatial grid
-    (Default = 200), potential for the spatial index values where the potential V(x) is set to
-    the initial condition value 1 (Default = []), and wparam for the inital conditions of the wave
-    corresponding to sigma0, x0, and k0 (Default = [10,0,0.5]). Returns solution as a two-dimensional 
-    array psi(x,t), and a one-dimensional array which gives the total probability computed for each
-    timestep of integration.'''
+    
+    Requires input parameters:
+      - nspace (int): The number of spatial grid points  
+      - ntime (int): The number of time steps to be solve over
+      - tau (float): The timestep of integration.
+    
+    Accepts optional parameters:
+      - method (string): The method of integration to be used; either 'ftcs' or 'crank' (Default = 'ftcs') (case insensitive)  
+      - length (int): The size of the spatial grid (Default = 200)
+      - potential (list): A spatial index with values that correspond to where the potential V(x) is set to the initial condition value 1 (Default = [])
+      - wparam (list): The parameters of the initial Gaussian wave function corresponding to sigma0, x0, and k0 (Default = [10,0,0.5])
+    
+    Returns the solution to the one-dimensional, time-dependent Schroedinger Equation as a two-dimensional array psi(x,t), 
+    and a one-dimensional array which gives the total probability computed for each timestep of integration.'''
 
     # Converting input arguments into shorter better versions for integration
     L = length
@@ -136,8 +148,8 @@ def sch_eqn(nspace, ntime, tau, method='ftcs', length=200, potential=[], wparam=
     Vx[potential] = 1               # setting V = 1 for all values specified by input arg potential
 
     # Creating the Psi(x,t) function
-    psi = np.zeros((nspace,ntime))                    # initializing empty array of shape (nspace x ntime)
-    psi[:,0] = make_initialcond_sch(wparam,x_grid)    # setting values of psi at t = 0 to calculated values of the initial wave function 
+    psi = np.zeros((nspace,ntime),dtype =complex)  # initializing empty array of shape (nspace x ntime) with complex type so as not to lose imaginary components
+    psi[:,0] = make_initialcond_sch(wparam,x_grid)     # setting values of psi at t = 0 to calculated values of the initial wave function 
 
     # Constuction of Hamiltonian matrix for use in FTCS and Crank-Nicolson (CN) integration schemes
     coeff_Ham = (-_h_bar_given**2)/(2*_m_given*(h**2))  
@@ -152,7 +164,8 @@ def sch_eqn(nspace, ntime, tau, method='ftcs', length=200, potential=[], wparam=
     A_ftcs = I - (_imag_i*tau/_h_bar_given)*H                                             
     A_cn = (np.linalg.inv(I + (_imag_i*tau/(2*_h_bar_given))*H))*(I - (_imag_i*tau/(2*_h_bar_given))*H)
 
-    
+    # Defining the probability function
+
 
     # Logic pathway for FTCS integration (default)
     if method == 'ftcs': 
@@ -165,25 +178,28 @@ def sch_eqn(nspace, ntime, tau, method='ftcs', length=200, potential=[], wparam=
             print('FTCS integation is stable for input timestep.')
             print('PROCEEDING WITH INTEGRATION')
             
-            
-            return #solution to sch eqn, total probability at each timestep
+            # Main FTCS Loop - ranges from one to ntime since psi at t = 0 is the initial condition
+            for i in range(1, ntime):
         
+                psi[:, i]  = A_ftcs.dot(psi[:,i-1])  # Solving Schroedingers Equation with FTCS method
+            
         # If unstable, notify user and terminate integration
         else:
-            print('FTCS integration is unstable for input parameters.')
-            print('Please try again.')
-            print('INTEGRATION TERMINATED')
-            return # nothing, integration will not proceed 
+            return 'FTCS integration is unstable for input timestep.\nPlease try again.\nINTEGRATION TERMINATED' # nothing, integration will not proceed 
 
 
-    # Logic pathway for Crank_Nicolson integration
+    # # Logic pathway for Crank_Nicolson integration
     elif method == 'crank':
-        A_cn # no stability analysis required, stable for all tau
-    
-
+        # no stability analysis required, stable for all tau
         
-    return 
-
-h_out, H_out = sch_eqn(nspace_tbd,ntime_tbd,tau_tbd)
-print(h_out)
-print(H_out)
+        # Main Crank-Nicolson Loop - ranges from one to ntime since psi at t = 0 is the initial condition
+            for i in range(1, ntime):
+        
+            # Solving Schroedingers Equation with CN method
+                psi[:, i]  = A_cn.dot(psi[:,i-1])
+    
+        
+    return psi #solution to sch eqn, total probability at each timestep
+        
+test_out = sch_eqn(nspace_tbd,ntime_tbd,tau_tbd)
+print(test_out)
