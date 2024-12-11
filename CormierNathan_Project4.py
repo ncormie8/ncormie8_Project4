@@ -131,12 +131,12 @@ def sch_eqn(nspace, ntime, tau, method='ftcs', length=200, potential=[], wparam=
     t_grid = np.arange(0,ntime*tau,tau)
 
     # Initializing the potential array (tested - appears to be working properly)
-    Vx_initial = np.empty(np.size(x_grid))  # creating empty array of potentials to match each x position
-    Vx_initial[potential] = 1               # setting V = 1 for all values specified by input arg potential
+    Vx = np.empty(np.size(x_grid))  # creating empty array of potentials to match each x position
+    Vx[potential] = 1               # setting V = 1 for all values specified by input arg potential
 
     # Evolution matrices for FTCS and Crank-Nicolson integration schemes
     coeff_Ham = (-_h_bar_given**2)/(2*_m_given*(h**2))  # simplifies to -1/h^2
-    H = make_tridiagonal(nspace,coeff_Ham,-2*coeff_Ham,coeff_Ham)
+    H = make_tridiagonal(nspace,coeff_Ham,-2*coeff_Ham,coeff_Ham) + Vx*make_tridiagonal(nspace,0,1,0)
 
     return [h,H]
 
@@ -169,6 +169,6 @@ def sch_eqn(nspace, ntime, tau, method='ftcs', length=200, potential=[], wparam=
     # elif method == 'crank':
         # no stability analysis required, stable for all tau
 
-h_out, H_out = sch_eqn(nspace_tbd,ntime_tbd,tau_tbd)
+h_out, H_out = sch_eqn(nspace_tbd,ntime_tbd,tau_tbd,potential=[1,2])
 print(h_out)
 print(H_out)
