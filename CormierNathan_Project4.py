@@ -110,13 +110,14 @@ def total_probability(wavefunction):
     # Probability function loop   
     psiSquare = wavefunction*np.conjugate(wavefunction)
     total_prob = np.sum(psiSquare)
-    return total_prob
+    
+    return np.real(total_prob) # return as real component to avoid "ComplexWarning: Casting complex values to real discards the imaginary part" as probability is real
 
 
 # Initial parameter declarations (using values from Lab 11 to test functionality for now)
 nspace_tbd = 100  # number of spatial grid points (int)
 ntime_tbd = 501   # number of time steps to be solved over (int)
-tau_tbd = 1e-500    # tau is the time step to be solved with (float)
+tau_tbd = 1e-5    # tau is the time step to be solved with (float)
 
 # Global constants (identified by _ as first character)
 _h_bar_given = 1.0  # plancks constant
@@ -150,17 +151,22 @@ def sch_eqn(nspace, ntime, tau, method='ftcs', length=200, potential=[], wparam=
     x_grid = np.arange(nspace)*h - L/2
     
     # Initializing the time grid array to solve over (tested - appears to be working properly)
-    t_grid = np.linspace(0,ntime*tau,ntime)
+    t_grid = np.arange(0,ntime*tau,tau)
 
     # Initializing the potential array (tested - appears to be working properly)
-    Vx = np.zeros(np.size(x_grid))  # creating zeros array of potentials to match each x position (used empty originally and caused many issues)
+    Vx = np.zeros(nspace)  # creating zeros array of potentials to match each x position (used empty originally and caused many issues)
     Vx[potential] = 1               # setting V = 1 for all values specified by input arg potential
-    # ^^^ PROBLEM SOURCE
 
     # Creating the Psi(x,t) function
     psi = np.zeros((nspace,ntime),dtype=complex)  # initializing empty array of shape (nspace x ntime) with complex type so as not to lose imaginary components
     psi[:,0] = make_initialcond_sch(wparam,x_grid)     # setting values of psi at t = 0 to calculated values of the initial wave function
-    probabilities = np.zeros(ntime) 
+    
+    # Normalizing psi(x,0) so integral from -inf to inf of |psi^2|dx = 1 (and so that probability at t = 0 is 100%)
+    psi[:,0] = psi[:,0]/(total_probability(psi[:,0])**(1/2.))
+
+    # Creating and initializing the probability function
+    probability = np.zeros(ntime)
+    probability[0] = total_probability(psi[:,0])  # initial probability should be 100% (and since its conserved it should be at all other times t)
 
     # Constuction of Hamiltonian matrix for use in FTCS and Crank-Nicolson (CN) integration schemes
     coeff_Ham = (-1*_h_bar_given**2)/(2*_m_given*(h**2))  
@@ -172,7 +178,7 @@ def sch_eqn(nspace, ntime, tau, method='ftcs', length=200, potential=[], wparam=
     
     # Evolution matrices for FTCS and CN integration schemes
     I = np.identity(nspace)
-    A_ftcs = I - _imag_i*tau/_h_bar_given*H
+    A_ftcs = I - (_imag_i*tau/_h_bar_given)*H
     A_cn= np.dot(np.linalg.inv(I + (_imag_i*tau/(2*_h_bar_given))*H),(I - (_imag_i*tau/(2*_h_bar_given))*H))
 
     # Logic pathway for FTCS integration (default)
@@ -187,10 +193,10 @@ def sch_eqn(nspace, ntime, tau, method='ftcs', length=200, potential=[], wparam=
             print('PROCEEDING WITH INTEGRATION')
             # Main FTCS Loop - ranges from one to ntime since psi at t = 0 is the initial condition
             for i in range(1, ntime):
-                psi[:, i]  = A_ftcs.dot(psi[:,i-1])  # Solving Schroedingers Equation with FTCS method
-                probabilities[i] = total_probability(psi[:,i])  # determines total prob fo finding particle at time i
+                psi[:, i]  = np.dot(A_ftcs,psi[:,i-1])  # Solving Schroedingers Equation with FTCS method
+                probability[i] = total_probability(psi[:,i])  # determines total probability of finding particle at time i
             
-            return psi, x_grid, t_grid, probabilities
+            return psi, x_grid, t_grid, probability
 
         # If unstable, notify user and terminate integration
         else:
@@ -203,9 +209,10 @@ def sch_eqn(nspace, ntime, tau, method='ftcs', length=200, potential=[], wparam=
         # Main Crank-Nicolson Loop - ranges from one to ntime since psi at t = 0 is the initial condition
         for i in range(1, ntime):
         # Solving Schroedingers Equation with CN method
-            psi[:, i]  = A_cn.dot(psi[:,i-1])
-            probabilities[i] = total_probability(psi[:,i])
+            psi[:, i]  = np.dot(A_cn,psi[:,i-1])
+            probability[i] = total_probability(psi[:,i])
        
-        return  psi, x_grid, t_grid, probabilities
+        return  psi, x_grid, t_grid, probability
         
-psi, x, t, probabs = sch_eqn(nspace_tbd,ntime_tbd,tau_tbd)
+psi, x, t, total_probs = sch_eqn(nspace_tbd,ntime_tbd,tau_tbd,method='crank')
+
