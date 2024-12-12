@@ -104,6 +104,15 @@ def make_initialcond_sch(wparam,space_grid):
 #------------------------------------------------------------------------------------------------------------#
 # Project 4 - Main
 
+# Probability function
+def total_probability(wavefunction):
+    '''This function calculates the total probability of finding the particle in time point t.'''
+    # Probability function loop   
+    psiSquare = wavefunction*np.conjugate(wavefunction)
+    total_prob = np.sum(psiSquare)
+    return total_prob
+
+
 # Initial parameter declarations (using values from Lab 11 to test functionality for now)
 nspace_tbd = 100  # number of spatial grid points (int)
 ntime_tbd = 501   # number of time steps to be solved over (int)
@@ -150,7 +159,8 @@ def sch_eqn(nspace, ntime, tau, method='ftcs', length=200, potential=[], wparam=
 
     # Creating the Psi(x,t) function
     psi = np.zeros((nspace,ntime),dtype=complex)  # initializing empty array of shape (nspace x ntime) with complex type so as not to lose imaginary components
-    psi[:,0] = make_initialcond_sch(wparam,x_grid)     # setting values of psi at t = 0 to calculated values of the initial wave function 
+    psi[:,0] = make_initialcond_sch(wparam,x_grid)     # setting values of psi at t = 0 to calculated values of the initial wave function
+    probabilities = np.zeros(ntime) 
 
     # Constuction of Hamiltonian matrix for use in FTCS and Crank-Nicolson (CN) integration schemes
     coeff_Ham = (-1*_h_bar_given**2)/(2*_m_given*(h**2))  
@@ -175,35 +185,27 @@ def sch_eqn(nspace, ntime, tau, method='ftcs', length=200, potential=[], wparam=
         if stab_val <= 1:
             print('FTCS integation is stable for input timestep.')
             print('PROCEEDING WITH INTEGRATION')
-            
             # Main FTCS Loop - ranges from one to ntime since psi at t = 0 is the initial condition
             for i in range(1, ntime):
                 psi[:, i]  = A_ftcs.dot(psi[:,i-1])  # Solving Schroedingers Equation with FTCS method
-                # Probability function loop
-            
-            probabilities = np.zeros((ntime))
-            psiSQR = psi*(np.conjugate(psi))
-            probabilities = np.real(psiSQR)
+                probabilities[i] = total_probability(psi[:,i])  # determines total prob fo finding particle at time i
             
             return psi, x_grid, t_grid, probabilities
 
         # If unstable, notify user and terminate integration
         else:
             print('FTCS integration is unstable for input timestep.\nPlease try again.\nINTEGRATION TERMINATED')
-            return [0,0,0,0] # all zeros incdicate failed integration, stops expected unpacking error from occuring
+            return [0,0,0,0] # all zeros incdicate failed integration, stops expected 4 elements unpacking error from occuring
 
     # # Logic pathway for Crank_Nicolson integration
     elif method == 'crank':
         # no stability analysis required, stable for all tau
         # Main Crank-Nicolson Loop - ranges from one to ntime since psi at t = 0 is the initial condition
-            for i in range(1, ntime):
-            # Solving Schroedingers Equation with CN method
-                psi[:, i]  = A_cn.dot(psi[:,i-1])
-            probabilities = np.zeros((ntime))
-            psiSQR = psi*(np.conj(psi))
-            probabilities = np.real(np.sum(psiSQR))
-    
-
-     #solution to sch eqn, total probability at each timestep
+        for i in range(1, ntime):
+        # Solving Schroedingers Equation with CN method
+            psi[:, i]  = A_cn.dot(psi[:,i-1])
+            probabilities[i] = total_probability(psi[:,i])
+       
+        return  psi, x_grid, t_grid, probabilities
         
 psi, x, t, probabs = sch_eqn(nspace_tbd,ntime_tbd,tau_tbd)
