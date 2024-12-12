@@ -215,4 +215,56 @@ def sch_eqn(nspace, ntime, tau, method='ftcs', length=200, potential=[], wparam=
         return  psi, x_grid, t_grid, probability
         
 psi, x, t, total_probs = sch_eqn(nspace_tbd,ntime_tbd,tau_tbd,method='crank')
+results = [psi,x,t,total_probs]
 
+def sch_plot(results,save=False):
+    '''Explanation!'''
+    # unpacking results from sch_eqn()
+    psi = results[0]
+    x = results[1]
+    t = results[2]
+    total_probs = results[3]
+    
+    # Setting upper and lower bounds for selectable timepoints for the user to choose from
+    timePt_lb = int(t[0])
+    timePt_ub = int(np.size(t)-1)
+
+    # Promting user for desired timepoint to plotted at
+    print('The timestep is '+str(t[1]))
+    timePt_selected = int(input('Please input a timepoint within the following range; '+str(timePt_lb)+'-'+str(timePt_ub)+'\n'))
+    
+    if timePt_selected <= timePt_ub and timePt_selected >= timePt_lb:
+        
+        print('Would you like a plot of psi or probability?')
+        plot_type = (str(input('options:\n- psi\n- prob\n')))
+
+        if plot_type == 'psi':
+            plt.plot(x,psi[:,timePt_selected])
+
+            if save is True:
+                plt.savefig('psi_at_t'+str(timePt_selected*float(t[1]))+'.png')
+
+            plt.show()
+            print('Psi plotting complete')
+            return
+
+        elif plot_type =='prob':
+            pDensity = np.real(psi[:,timePt_selected]*np.conjugate(psi[:,timePt_selected]))
+            plt.plot(x,pDensity)
+            
+            if save is True:
+                plt.savefig('prob_at_t'+str(timePt_selected*float(t[1]))+'.png')
+
+            plt.show()
+            print('Probability plotting complete')
+            return
+        
+        else:
+            print('Invalid input plot type. Please try again.')
+            return
+    
+    else:
+        print('Invalid timepoint selected. Please try again.')
+        return 
+
+sch_plot(results)
