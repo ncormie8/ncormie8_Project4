@@ -141,28 +141,28 @@ def sch_eqn(nspace, ntime, tau, method='ftcs', length=200, potential=[], wparam=
     h = L/(nspace-1)         # x_grid spacing parameter (minus 1 so it goes perfectly from -L/2 to L/2)
     method = method.lower()  # modifying input string to be all lowercase for versatility
 
-    # Initializing the x grid array to solve over (tested - appears to be working properly)
+    # Initializing the x grid array to solve over
     x_grid = np.arange(nspace)*h - L/2
     
-    # Initializing the time grid array to solve over (tested - appears to be working properly)
+    # Initializing the time grid array to solve over
     t_grid = np.arange(0,ntime*tau,tau)
 
-    # Initializing the potential array (tested - appears to be working properly)
-    Vx = np.zeros(nspace)  # creating zeros array of potentials to match each x position (used empty originally and caused many issues)
-    Vx[potential] = 1               # setting V = 1 for all values specified by input arg potential
+    # Initializing the potential array
+    Vx = np.zeros(nspace)  # creating zeros array of potentials to match each x position
+    Vx[potential] = 1      # setting V = 1 for all values specified by input arg potential
 
     # Creating the Psi(x,t) function
-    psi = np.zeros((nspace,ntime),dtype=complex)  # initializing empty array of shape (nspace x ntime) with complex type so as not to lose imaginary components
-    psi[:,0] = make_initialcond_sch(wparam,x_grid)     # setting values of psi at t = 0 to calculated values of the initial wave function
+    psi = np.zeros((nspace,ntime),dtype=complex)    # initializing empty array of shape (nspace x ntime) with complex type so as not to lose imaginary components
+    psi[:,0] = make_initialcond_sch(wparam,x_grid)  # setting values of psi at t = 0 to calculated values of the initial wave function
 
-    # Normalizing psi(x,0) so integral from -inf to inf of |psi^2|dx = 1 (and so that probability at t = 0 is 100%)
+    # Normalizing psi(x,0)
     psi[:,0] = psi[:,0]/(total_probability(psi[:,0])**(1/2.))
 
     # Creating and initializing the probability function
     probability = np.zeros(ntime)
-    probability[0] = total_probability(psi[:,0])  # initial probability should be 100% (and since its conserved it should be at all other times t)
+    probability[0] = total_probability(psi[:,0])  # initial probability should be 100%
     
-    # Constuction of Hamiltonian matrix for use in FTCS and Crank-Nicolson (CN) integration schemes
+    # Construction of Hamiltonian matrix for use in FTCS and Crank-Nicolson (CN) integration schemes
     coeff_Ham = (-1*_h_bar_given**2)/(2*_m_given*(h**2))  
     H = make_tridiagonal(nspace,coeff_Ham,-2*coeff_Ham,coeff_Ham) + np.diag(Vx)
     
@@ -196,7 +196,7 @@ def sch_eqn(nspace, ntime, tau, method='ftcs', length=200, potential=[], wparam=
         # If unstable, notify user and terminate integration
         else:
             print('FTCS integration is unstable for input timestep.\nPlease try again.\nINTEGRATION TERMINATED')
-            return [0,0,0,0] # all zeros incdicate failed integration, stops expected 4 elements unpacking error from occuring
+            return [0,[0],0,0] # all zeros incdicate failed integration, stops expected 4 elements unpacking error from occuring
 
     # # Logic pathway for Crank_Nicolson integration
     elif method == 'crank':
@@ -209,41 +209,55 @@ def sch_eqn(nspace, ntime, tau, method='ftcs', length=200, potential=[], wparam=
       
         return  psi, x_grid, t_grid, probability
                 
-psi, x, t, total_probs = sch_eqn(100,501,1e-20)
+psi, x, t, total_probs = sch_eqn(100,10001,1e-2,method='crank')
 results = [psi,x,t,total_probs]
-
 
 ### COMMENTING and formatting not done yet but fully functional
 def sch_plot(results,save=False):
-    '''Explanation!'''
-    if results == [0,0,0,0]:
-        print('\nsch_eqn() did not complete integration.')
-        print('PLOTTING TERMINATED')
-        return
+    '''Plot the outputs of sch_eqn() at a user selected time point and produce a plot of the Gaussian waveform, 
+    probability density, or both. Users may optionally save plots upon generation.
     
-    # unpacking results from sch_eqn()
+    Required parameter: 
+    - results (list): contains the results of sch_eqn() function call [phi, x_grid, t_grid, total_probabilities]
+    
+    Optional parameter:
+    - save (Bool): enables automatic saving of generated plots when set to True (Default = False)'''
+    
+    # Unpacking results from sch_eqn()
     psi = results[0]
     x = results[1]
     t = results[2]
     total_probs = results[3]
     
+    # Checking if the input results are from failed or successful integration
+    if  x[0] == 0:  # (This will never be true unless integration fails)
+        print('\nsch_eqn() did not complete integration.\nPLOTTING TERMINATED')
+        return
+
     # Setting upper and lower bounds for selectable timepoints for the user to choose from
     timePt_lb = int(t[0])
     timePt_ub = int(np.size(t)-1)
+
+    # Extracting the value of the timestep
     timestep = t[1]
 
-    # Promting user for desired timepoint to plotted at
+    # Promting user for desired timepoint to plot phi, prob, or both at
     print('The timestep is '+str(timestep)+'s')
     timePt_selected = int(input('Please input a timepoint within the following range; '+str(timePt_lb)+'-'+str(timePt_ub)+'\n'+'Input: '))
 
+    # Verifying that a valid time point within the given range was entered
     if timePt_selected <= timePt_ub and timePt_selected >= timePt_lb:
         
+        # Defining the actual time value that the desired plot type is to be generated at
         actual_time = t[timePt_selected]
         print('Time selected = '+str(actual_time)+'s')
 
+        # Promting user for desired plot type; phi, prob, or both
         print('Would you like a plot of psi or probability?')
         plot_type = (str(input('options:\n- psi\n- prob\n- both\nInput: ')))
+        plot_type = plot_type.lower()
 
+        # Logical pathway for plotting the Gaussian waveform at the specified time
         if plot_type == 'psi':
             plt.plot(x,np.real(psi[:,timePt_selected])) # taking real part of psi to avoid casting warnings
             plt.xlabel('X position')
@@ -251,68 +265,78 @@ def sch_plot(results,save=False):
             plt.title('Positional at time '+str(actual_time)+'s')
             plt.grid()
 
+            # Logical pathway for saving the plot of phi if the user called for it
             if save is True:
-                plt.savefig('psi_at_t_'+str(actual_time)+'s.png')
-                print('Figure saved sucessfully.')
+                plt.savefig('psi_at_t_'+str(actual_time)+'s.png')    # Saving the plot
+                print('Figure saved sucessfully.')                   # Verifiying that the plot was saved
 
             plt.show()
             print('Psi plotting complete')
             return
 
+        # Logical pathway for plotting probability density
         elif plot_type =='prob':
+            # Calculating the probability denstiy for the selected time
             pDensity = np.real(psi[:,timePt_selected]*np.conjugate(psi[:,timePt_selected]))
+            
+            # Plotting probability density in terms of position at the specified time
             plt.plot(x,pDensity)
             plt.xlabel('X position')
             plt.ylabel('Probability Density')
             plt.title('Positional Probability Density at time '+str(actual_time)+'s')
             plt.grid()
             
+            # Logical pathway for saving the plot of prob if the user called for it
             if save is True:
-                plt.savefig('prob_at_t_'+str(actual_time)+'s.png')
-                print('Figure saved sucessfully.')
+                plt.savefig('prob_at_t_'+str(actual_time)+'s.png')   # Saving the plot
+                print('Figure saved sucessfully.')                   # Verifiying that the plot was saved
 
             plt.show()
             print('Probability plot complete.')
             return
         
+        # Logical pathway for plotting both types
         elif plot_type == 'both':
-            # defining 1 figure with 2 data sets
+            # Defining 1 figure with 2 data sets
             fig, (ax1,ax2) = plt.subplots(2)
 
-            # plotting psi(:,time_selected) in terms of x
+            # Plotting the Gaussian waveform in terms of position at the specified time
             ax1.plot(x,np.real(psi[:,timePt_selected])) 
 
-            # formatting and labeling for the top panel graph ()
+            # Formatting and labeling for the top panel graph (waveform)
             ax1.set_title('Positional Gaunssian Wavefunction Psi at time '+str(actual_time)+'s')
             ax1.set_xlabel('x position')
             ax1.set_ylabel('Psi(x)')
             ax1.grid()
 
-            # plotting the residual data over t_axis 
+            # Calculating and plotting the probability density in terms of position at the specified time
             pDensity = np.real(psi[:,timePt_selected]*np.conjugate(psi[:,timePt_selected]))
             ax2.plot(x,pDensity)
 
-            # formatting and labeling for the bottom panel graph (residual data)
+            # Formatting and labeling for the bottom panel graph (probability density)
             ax2.set_title('Positional Probability Density at time '+str(actual_time)+'s')
             ax2.set_xlabel('x position')
             ax2.set_ylabel('Probability Density')
             ax2.grid()
 
-            # fixes layout issue, stops plots from having overlapping titles
+            # Fixes layout issues by stopping plots from having overlapping
             fig.tight_layout()
             
+            # Logical pathway for saving the dual plot if the user called for it
             if save is True:
-                plt.savefig('psi_and_prob_at_t_'+str(actual_time)+'s.png')
-                print('Figure saved sucessfully.')
+                plt.savefig('psi_and_prob_at_t_'+str(actual_time)+'s.png')    # Saving the plot
+                print('Figure saved sucessfully.')                            # Verifiying that the plot was saved
             
             plt.show()
             print('Dual plot complete.')
             return
 
+        # Logical pathway for an invalid user input plot type
         else:
             print('Invalid input plot type. Please try again.')
             return
-    
+        
+    # Logical pathway for an invalid user input timepoint
     else:
         print('Invalid timepoint selected. Please try again.')
         return 
