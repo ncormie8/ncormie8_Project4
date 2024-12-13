@@ -20,6 +20,9 @@ import time                # for code testing and user experience (time.sleep())
 #       - Stability analysis logic from spectral_radius() output
 #       - Copied solving loops for use in FTCS and Crank-Nicolson integration schemes
 # 
+#  Lab 12; reused and adapted:
+#       - Vertical stacked plotting code for displaying psi(x) and P(x) at a given time
+#
 #  Western Brightspace. (n.d.). Physics 3926, Project 4: The Schrodinger Equation
 #  UWO. https://westernu.brightspace.com/d2l/le/enhancedSequenceViewer/29104?url=https%3A%2F%2F832d4e9b-197e-4ab6-a2ca-c4f7aae74b20.sequences.api.brightspace.com%2F29104%2Factivity%2F2552026%3FfilterOnDatesAndDepth%3D1
 #       - Used provided instuctions to complete Project 4
@@ -27,10 +30,7 @@ import time                # for code testing and user experience (time.sleep())
 #  
 #  Numerical Methods For Physics (Python) - Alejandro L. Garcia 2E revised, 2017. pgs 227-240
 
-# Fixing random state for reproducibility
-
-
-# Reused functions from previous labs and projects:
+# Reused/Modified functions from previous labs and projects:
 
 # Lab 10 - Spectral radius; used in performing stability analysis of FTCS integration
 def spectral_radius(A):
@@ -108,16 +108,10 @@ def make_initialcond_sch(wparam,space_grid):
 def total_probability(wavefunction):
     '''This function calculates the total probability of finding the particle in time point t.'''
     # Probability function loop   
-    psiSquare = wavefunction*np.conjugate(wavefunction)
+    psiSquare = np.dot(wavefunction,np.conjugate(wavefunction))
     total_prob = np.sum(psiSquare)
     
     return np.real(total_prob) # return as real component to avoid "ComplexWarning: Casting complex values to real discards the imaginary part" as probability is real
-
-
-# Initial parameter declarations (using values from Lab 11 to test functionality for now)
-nspace_tbd = 100  # number of spatial grid points (int)
-ntime_tbd = 501   # number of time steps to be solved over (int)
-tau_tbd = 1e-5    # tau is the time step to be solved with (float)
 
 # Global constants (identified by _ as first character)
 _h_bar_given = 1.0  # plancks constant
@@ -160,14 +154,14 @@ def sch_eqn(nspace, ntime, tau, method='ftcs', length=200, potential=[], wparam=
     # Creating the Psi(x,t) function
     psi = np.zeros((nspace,ntime),dtype=complex)  # initializing empty array of shape (nspace x ntime) with complex type so as not to lose imaginary components
     psi[:,0] = make_initialcond_sch(wparam,x_grid)     # setting values of psi at t = 0 to calculated values of the initial wave function
-    
+
     # Normalizing psi(x,0) so integral from -inf to inf of |psi^2|dx = 1 (and so that probability at t = 0 is 100%)
     psi[:,0] = psi[:,0]/(total_probability(psi[:,0])**(1/2.))
 
     # Creating and initializing the probability function
     probability = np.zeros(ntime)
     probability[0] = total_probability(psi[:,0])  # initial probability should be 100% (and since its conserved it should be at all other times t)
-
+    
     # Constuction of Hamiltonian matrix for use in FTCS and Crank-Nicolson (CN) integration schemes
     coeff_Ham = (-1*_h_bar_given**2)/(2*_m_given*(h**2))  
     H = make_tridiagonal(nspace,coeff_Ham,-2*coeff_Ham,coeff_Ham) + np.diag(Vx)
@@ -191,6 +185,7 @@ def sch_eqn(nspace, ntime, tau, method='ftcs', length=200, potential=[], wparam=
         if stab_val <= 1:
             print('FTCS integation is stable for input timestep.')
             print('PROCEEDING WITH INTEGRATION')
+            
             # Main FTCS Loop - ranges from one to ntime since psi at t = 0 is the initial condition
             for i in range(1, ntime):
                 psi[:, i]  = np.dot(A_ftcs,psi[:,i-1])  # Solving Schroedingers Equation with FTCS method
@@ -209,16 +204,23 @@ def sch_eqn(nspace, ntime, tau, method='ftcs', length=200, potential=[], wparam=
         # Main Crank-Nicolson Loop - ranges from one to ntime since psi at t = 0 is the initial condition
         for i in range(1, ntime):
         # Solving Schroedingers Equation with CN method
-            psi[:, i]  = np.dot(A_cn,psi[:,i-1])
-            probability[i] = total_probability(psi[:,i])
-       
+                psi[:, i] = np.dot(A_cn,psi[:,i-1])  # Solving Schroedingers Equation with CN method
+                probability[i] = total_probability(psi[:,i])  # determines total probability of finding particle at time i
+      
         return  psi, x_grid, t_grid, probability
-        
-psi, x, t, total_probs = sch_eqn(nspace_tbd,ntime_tbd,tau_tbd,method='crank')
+                
+psi, x, t, total_probs = sch_eqn(100,501,1e-20)
 results = [psi,x,t,total_probs]
 
+
+### COMMENTING and formatting not done yet but fully functional
 def sch_plot(results,save=False):
     '''Explanation!'''
+    if results == [0,0,0,0]:
+        print('\nsch_eqn() did not complete integration.')
+        print('PLOTTING TERMINATED')
+        return
+    
     # unpacking results from sch_eqn()
     psi = results[0]
     x = results[1]
@@ -228,21 +230,30 @@ def sch_plot(results,save=False):
     # Setting upper and lower bounds for selectable timepoints for the user to choose from
     timePt_lb = int(t[0])
     timePt_ub = int(np.size(t)-1)
+    timestep = t[1]
 
     # Promting user for desired timepoint to plotted at
-    print('The timestep is '+str(t[1]))
-    timePt_selected = int(input('Please input a timepoint within the following range; '+str(timePt_lb)+'-'+str(timePt_ub)+'\n'))
-    
+    print('The timestep is '+str(timestep)+'s')
+    timePt_selected = int(input('Please input a timepoint within the following range; '+str(timePt_lb)+'-'+str(timePt_ub)+'\n'+'Input: '))
+
     if timePt_selected <= timePt_ub and timePt_selected >= timePt_lb:
         
+        actual_time = t[timePt_selected]
+        print('Time selected = '+str(actual_time)+'s')
+
         print('Would you like a plot of psi or probability?')
-        plot_type = (str(input('options:\n- psi\n- prob\n')))
+        plot_type = (str(input('options:\n- psi\n- prob\n- both\nInput: ')))
 
         if plot_type == 'psi':
-            plt.plot(x,psi[:,timePt_selected])
+            plt.plot(x,np.real(psi[:,timePt_selected])) # taking real part of psi to avoid casting warnings
+            plt.xlabel('X position')
+            plt.ylabel('Psi(x)')
+            plt.title('Positional at time '+str(actual_time)+'s')
+            plt.grid()
 
             if save is True:
-                plt.savefig('psi_at_t'+str(timePt_selected*float(t[1]))+'.png')
+                plt.savefig('psi_at_t_'+str(actual_time)+'s.png')
+                print('Figure saved sucessfully.')
 
             plt.show()
             print('Psi plotting complete')
@@ -251,14 +262,53 @@ def sch_plot(results,save=False):
         elif plot_type =='prob':
             pDensity = np.real(psi[:,timePt_selected]*np.conjugate(psi[:,timePt_selected]))
             plt.plot(x,pDensity)
+            plt.xlabel('X position')
+            plt.ylabel('Probability Density')
+            plt.title('Positional Probability Density at time '+str(actual_time)+'s')
+            plt.grid()
             
             if save is True:
-                plt.savefig('prob_at_t'+str(timePt_selected*float(t[1]))+'.png')
+                plt.savefig('prob_at_t_'+str(actual_time)+'s.png')
+                print('Figure saved sucessfully.')
 
             plt.show()
-            print('Probability plotting complete')
+            print('Probability plot complete.')
             return
         
+        elif plot_type == 'both':
+            # defining 1 figure with 2 data sets
+            fig, (ax1,ax2) = plt.subplots(2)
+
+            # plotting psi(:,time_selected) in terms of x
+            ax1.plot(x,np.real(psi[:,timePt_selected])) 
+
+            # formatting and labeling for the top panel graph ()
+            ax1.set_title('Positional Gaunssian Wavefunction Psi at time '+str(actual_time)+'s')
+            ax1.set_xlabel('x position')
+            ax1.set_ylabel('Psi(x)')
+            ax1.grid()
+
+            # plotting the residual data over t_axis 
+            pDensity = np.real(psi[:,timePt_selected]*np.conjugate(psi[:,timePt_selected]))
+            ax2.plot(x,pDensity)
+
+            # formatting and labeling for the bottom panel graph (residual data)
+            ax2.set_title('Positional Probability Density at time '+str(actual_time)+'s')
+            ax2.set_xlabel('x position')
+            ax2.set_ylabel('Probability Density')
+            ax2.grid()
+
+            # fixes layout issue, stops plots from having overlapping titles
+            fig.tight_layout()
+            
+            if save is True:
+                plt.savefig('psi_and_prob_at_t_'+str(actual_time)+'s.png')
+                print('Figure saved sucessfully.')
+            
+            plt.show()
+            print('Dual plot complete.')
+            return
+
         else:
             print('Invalid input plot type. Please try again.')
             return
